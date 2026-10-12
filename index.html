@@ -138,14 +138,16 @@
   textarea::placeholder { color: var(--muted); font-weight: 500; }
   textarea:focus { box-shadow: var(--shadow), 0 0 0 4px rgba(255, 255, 255, .6); }
 
-  .stack > .outbox { position: relative; width: 100%; flex: 0 1 auto; min-height: 72px; display: flex; }
-  .outbox:has(#out:empty) { display: none; }
+  /* plain divs + column flex: Safari won't scroll a <button> or resolve a % max-height here */
+  .stack > .outbox { position: relative; width: 100%; flex: 0 1 auto; min-height: 72px; display: flex; flex-direction: column; }
+  .stack > .outbox[hidden] { display: none; }
 
   #out {
     width: 100%;
+    flex: 0 1 auto;
     min-height: 0;
-    max-height: 100%;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     overflow-x: hidden;
     /* scrollbar space on both sides keeps the horses centred when the box scrolls */
     scrollbar-gutter: stable both-edges;
@@ -159,6 +161,8 @@
     font-size: clamp(20px, 4.6vw, 26px);
     line-height: 1.4;
     cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
     -webkit-tap-highlight-color: transparent;
     box-shadow: var(--shadow);
     display: flex;
@@ -317,8 +321,8 @@
   <div class="stack">
     <textarea id="in" rows="1" placeholder="type a message" autocomplete="off" autocapitalize="off" spellcheck="false" autofocus aria-label="Message"></textarea>
 
-    <div class="outbox">
-      <button id="out" type="button" aria-label="Horse code — tap to copy"></button>
+    <div class="outbox" id="outbox" hidden>
+      <div id="out" role="button" tabindex="0" aria-label="Horse code — tap to copy"></div>
       <button class="tag" id="tag" type="button" aria-live="polite">
         <svg class="sheets" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="9" height="9" rx="2"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg>
         <svg class="tick" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>
@@ -361,6 +365,7 @@
 
   const input = document.getElementById("in");
   const out = document.getElementById("out");
+  const outbox = document.getElementById("outbox");
   const bar = document.getElementById("bar");
   const playBtn = document.getElementById("play");
   const playLabel = document.getElementById("playLabel");
@@ -379,14 +384,21 @@
 
   // horses (or dots and dashes) -> words -> letters -> morse strings
   const ENGLISH = Object.fromEntries(Object.entries(MORSE).map(([c, m]) => [m, c]));
+  const HORSES = /[🐴🐎]/u;
   const parse = text =>
-    text.replace(/\uFE0F/g, "").replace(/🐴/gu, ".").replace(/🐎/gu, "-")
-      .replace(/[^.\-\s/]/g, "").trim()
+    // when there are horses, stray "." and "-" are punctuation, not morse
+    (HORSES.test(text) ? text.replace(/[.\-]/g, "") : text)
+      .replace(/\p{Cf}|\uFE0F/gu, "").replace(/🐴/gu, ".").replace(/🐎/gu, "-")
+      .replace(/[^.\-\s/]/g, " ").replace(/[^\S\n]*\n[^\S\n]*/g, "\n").trim()
       .split(/\s*\/\s*|\s{2,}|\n+/)
       .map(w => w.split(/\s+/).filter(Boolean))
       .filter(w => w.length);
   const toEnglish = m => ENGLISH[m] ?? "?";
-  const isHorses = text => /[🐴🐎]/u.test(text) && !/[a-z0-9]/i.test(text);
+  // mostly horses = horse code, even if a chat name or timestamp came along with it
+  const isHorses = text => {
+    const horses = (text.match(/[🐴🐎]/gu) || []).length;
+    return horses > 0 && horses >= (text.match(/[a-z0-9]/gi) || []).length;
+  };
 
   let mode = "encode";
   let model = [];
@@ -412,10 +424,11 @@
       ? words.map(w => w.map(toHorse).join(" ")).join("  ")
       : words.map(w => w.map(toEnglish).join("")).join(" ");
     bar.classList.toggle("hidden", !plain);
+    outbox.hidden = !plain;
     out.classList.toggle("decoded", mode === "decode");
     out.setAttribute("aria-label", `${mode === "encode" ? "Horse code" : "English"} — tap to copy`);
-    // warm up the encoder so the share sheet opens while the tap still counts
-    if (plain) loadLame().catch(() => {});
+    // build the mp3 in the background so the share sheet opens while the tap still counts
+    warmGallop();
 
     if (mode === "decode") {
       out.innerHTML = words.map(w =>
@@ -519,6 +532,9 @@
     }, 1600);
   };
   out.addEventListener("click", () => { copy(); nextCaption(); });
+  out.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); copy(); nextCaption(); }
+  });
   tag.addEventListener("click", () => { copy(); nextCaption(); });
 
   // hear it: each dot is one hoof, each dash a clip-clop, in morse timing
@@ -586,6 +602,16 @@
     playLabel.textContent = "hear gallop";
   }
 
+  // on iPhone, web audio follows the silent switch unless it's marked as media playback
+  if (navigator.audioSession) navigator.audioSession.type = "playback";
+
+  // scroll only the horse box, never the page
+  const reveal = el => {
+    const top = el.offsetTop - out.offsetTop, bottom = top + el.offsetHeight;
+    if (top < out.scrollTop + 46) out.scrollTop = top - 46;
+    else if (bottom > out.scrollTop + out.clientHeight - 12) out.scrollTop = bottom - out.clientHeight + 12;
+  };
+
   playBtn.addEventListener("click", () => {
     if (timers.length) return stop();
     ctx ||= new (window.AudioContext || window.webkitAudioContext)();
@@ -601,7 +627,7 @@
       out.querySelectorAll(".on").forEach(x => x.classList.remove("on"));
       if (!el) return;
       el.classList.add("on");
-      el.scrollIntoView({ block: "nearest" });
+      reveal(el);
     }, at * 1000 + 50)));
     timers.push(setTimeout(stop, length * 1000 + 300));
   });
@@ -638,30 +664,65 @@
 
   const slug = () => ((mode === "encode" ? input.value : plain).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "gallop");
 
+  const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+
+  const buildGallop = async () => {
+    // snapshot the message now; it may change while the encoder loads
+    const { steps, length } = timeline();
+    const name = `gallop-${slug()}.mp3`;
+    const lamejs = await loadLame();
+    const rate = 44100;
+    const off = new Offline(1, Math.ceil((length + .4) * rate), rate);
+    hooves(off, off.destination, .1, steps);
+    const audio = await new Promise((resolve, reject) => {
+      off.oncomplete = e => resolve(e.renderedBuffer);
+      const p = off.startRendering();
+      if (p) p.then(resolve, reject);
+    });
+    return new File([toMp3(lamejs, audio)], name, { type: "audio/mpeg" });
+  };
+
+  // one cached mp3 per message
+  let gallop = { key: "", file: null, promise: null };
+  const getGallop = () => {
+    const key = mode + plain;
+    if (gallop.key !== key) {
+      gallop = { key, file: null, promise: buildGallop() };
+      const mine = gallop;
+      mine.promise.then(f => { mine.file = f; }, () => { if (gallop === mine) gallop = { key: "" }; });
+    }
+    return gallop;
+  };
+  let warm;
+  const warmGallop = () => {
+    clearTimeout(warm);
+    if (plain) warm = setTimeout(() => getGallop(), 600);
+  };
+
+  const download = file => {
+    const url = URL.createObjectURL(file);
+    const a = Object.assign(document.createElement("a"), { href: url, download: file.name });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const shareFile = file =>
+    SHARES && navigator.canShare({ files: [file] })
+      // falls back to a download if the browser refuses the share
+      ? navigator.share({ files: [file] }).catch(e => { if (e.name !== "AbortError") download(file); })
+      : download(file);
+
   saveBtn.addEventListener("click", async () => {
-    if (saveBtn.disabled) return;
+    if (saveBtn.disabled || !plain) return;
+    const g = getGallop();
     saveBtn.disabled = true;
-    saveLabel.textContent = "saddling up…";
     try {
-      const lamejs = await loadLame();
-      const { steps, length } = timeline();
-      const rate = 44100;
-      const off = new OfflineAudioContext(1, Math.ceil((length + .4) * rate), rate);
-      hooves(off, off.destination, .1, steps);
-      const blob = toMp3(lamejs, await off.startRendering());
-      const name = `gallop-${slug()}.mp3`;
-      const file = new File([blob], name, { type: "audio/mpeg" });
-      const download = () => {
-        const url = URL.createObjectURL(blob);
-        const a = Object.assign(document.createElement("a"), { href: url, download: name });
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      };
-      if (SHARES && navigator.canShare({ files: [file] })) {
-        // falls back to a download if the browser refuses the share
-        await navigator.share({ files: [file] }).catch(e => e.name !== "AbortError" && download());
+      if (g.file) {
+        // ready: call share inside the tap, which iPhone requires
+        await shareFile(g.file);
       } else {
-        download();
+        saveLabel.textContent = "saddling up…";
+        await shareFile(await g.promise);
       }
       saveLabel.textContent = "giddy up";
       nextCaption();
