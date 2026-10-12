@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>horse code</title>
+<meta name="theme-color" content="#7cc4ec">
+<meta name="description" content="Morse code, but horses. 🐴 is a dot, 🐎 is a dash.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐴</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
+<style>
+  /* classic meme: impact, white text, black outline, a horse */
+  :root {
+    --sky: #7cc4ec;
+    --sky-2: #b9e2f7;
+    --grass: #6fb04a;
+    --grass-2: #4f8f34;
+    --paper: #ffffff;
+    --ink: #111111;
+    --muted: #7a7a7a;
+    --meme: Impact, "Anton", "Haettenschweiler", "Arial Narrow Bold", sans-serif;
+    --shadow: 0 10px 30px -12px rgba(0, 0, 0, .35);
+  }
+
+  * { box-sizing: border-box; margin: 0; }
+
+  html, body {
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    color: var(--ink);
+    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: linear-gradient(180deg, var(--sky) 0%, var(--sky-2) 100%);
+  }
+
+  /* clouds drifting over the field */
+  .scene { position: fixed; inset: 0; pointer-events: none; overflow: hidden; user-select: none; }
+  .cloud {
+    position: absolute;
+    left: 0;
+    width: var(--w);
+    height: calc(var(--w) * .32);
+    border-radius: 999px;
+    background: #fff;
+    opacity: .85;
+    animation: drift var(--d) linear var(--delay) infinite;
+  }
+  .cloud::before, .cloud::after {
+    content: "";
+    position: absolute;
+    bottom: 30%;
+    border-radius: 50%;
+    background: #fff;
+  }
+  .cloud::before { left: 16%; width: 40%; aspect-ratio: 1; }
+  .cloud::after { left: 44%; width: 30%; aspect-ratio: 1; }
+  @keyframes drift { from { translate: 110vw 0; } to { translate: -40vw 0; } }
+
+
+  /* top text / bottom text */
+  .meme {
+    font-family: var(--meme);
+    font-weight: 400;
+    text-transform: uppercase;
+    text-align: center;
+    color: #fff;
+    line-height: 1;
+    letter-spacing: .01em;
+    -webkit-text-stroke: .1em #000;
+    paint-order: stroke fill;
+    text-shadow: 0 .04em .12em rgba(0, 0, 0, .35);
+  }
+
+  main {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(12px, 2.4vh, 20px);
+    padding-top: max(20px, env(safe-area-inset-top));
+  }
+  main > :not(.ground) { max-width: calc(100% - 32px); }
+
+  /* the grass: holds the bottom text, everything above grows down to meet it */
+  .ground {
+    flex: none;
+    width: 100%;
+    margin-top: auto;
+    display: flex;
+    justify-content: center;
+    padding: clamp(14px, 2.6vh, 24px) 16px max(clamp(14px, 2.6vh, 24px), env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, var(--grass) 0%, var(--grass-2) 100%);
+    box-shadow: inset 0 3px 0 rgba(255, 255, 255, .18);
+  }
+
+  h1 { flex: none; font-size: clamp(48px, min(16vw, 11vh), 128px); margin: clamp(4px, 3vh, 48px) 0 4px; }
+
+  .stack {
+    flex: 0 1 auto;
+    min-height: 0;
+    width: min(560px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .stack > * { flex: none; }
+
+  textarea {
+    display: block;
+    width: 100%;
+    min-height: 0;
+    max-height: 20dvh;
+    padding: 16px 20px;
+    border: 0;
+    border-radius: 16px;
+    background: var(--paper);
+    color: var(--ink);
+    font: inherit;
+    font-size: clamp(19px, 4.6vw, 24px);
+    font-weight: 600;
+    line-height: 1.3;
+    text-align: center;
+    resize: none;
+    outline: none;
+    overflow-y: hidden;
+    scrollbar-gutter: stable both-edges;
+    scrollbar-width: thin;
+    box-shadow: var(--shadow);
+    transition: box-shadow .2s, transform .2s;
+  }
+  textarea::placeholder { color: var(--muted); font-weight: 500; }
+  textarea:focus { box-shadow: var(--shadow), 0 0 0 4px rgba(255, 255, 255, .6); }
+
+  .stack > .outbox { position: relative; width: 100%; flex: 0 1 auto; min-height: 72px; display: flex; }
+  .outbox:has(#out:empty) { display: none; }
+
+  #out {
+    width: 100%;
+    min-height: 0;
+    max-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* scrollbar space on both sides keeps the horses centred when the box scrolls */
+    scrollbar-gutter: stable both-edges;
+    scrollbar-width: thin;
+    padding: 46px 18px 18px;
+    border: 0;
+    border-radius: 16px;
+    background: var(--paper);
+    color: inherit;
+    font: inherit;
+    font-size: clamp(20px, 4.6vw, 26px);
+    line-height: 1.4;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    column-gap: 1.6em;
+    row-gap: .45em;
+    transition: transform .1s;
+  }
+  #out:active { transform: scale(.985); }
+  #out:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+
+  .word { display: inline-flex; flex-wrap: wrap; justify-content: center; column-gap: .5em; }
+
+  /* decoded english */
+  #out.decoded { column-gap: .35em; font-size: clamp(22px, 5.2vw, 30px); font-weight: 700; }
+  #out.decoded .word { column-gap: 0; }
+  .ch { display: inline-block; transition: transform .12s, color .12s, opacity .12s; }
+  .ch.unk { color: var(--muted); }
+  .ch.on { transform: translateY(-4px) scale(1.2); color: #e0452b; }
+  #out.playing .ch:not(.on) { opacity: .35; }
+
+  /* english → horse / horse → english */
+  .modes {
+    flex: none;
+    display: inline-flex;
+    padding: 4px;
+    margin-top: -6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .9);
+    box-shadow: var(--shadow);
+  }
+  .modes button {
+    height: 36px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    color: var(--ink);
+    font-family: var(--meme);
+    font-size: clamp(14px, 3.8vw, 16px);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color .2s, color .2s;
+  }
+  .modes button[aria-selected="true"] { background: var(--ink); color: #fff; }
+  .modes button:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+  .letter { display: inline-flex; white-space: nowrap; }
+  .h { display: inline-block; transition: transform .12s, filter .12s; }
+
+  /* the horse currently being "heard" */
+  .h.on { transform: translateY(-7px) scale(1.3); }
+  #out.playing .h:not(.on) { filter: grayscale(.6) opacity(.4); }
+
+  .tag {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 11px;
+    border: 0;
+    border-radius: 999px;
+    background: #f1f1f1;
+    color: var(--ink);
+    font-family: var(--meme);
+    font-size: 14px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background-color .2s, color .2s, transform .1s;
+  }
+  .tag:hover { background: #e6e6e6; }
+  .tag:active { transform: scale(.94); }
+  .tag:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+  .tag svg { width: 13px; height: 13px; }
+  .tag .tick { display: none; }
+  .tag.done { background: var(--ink); color: #fff; }
+  .tag.done .tick { display: block; animation: tick .3s ease-out; }
+  .tag.done .sheets { display: none; }
+  @keyframes tick { from { transform: scale(.4); opacity: 0; } }
+
+  .bar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    transition: opacity .2s, transform .2s;
+  }
+  .bar.hidden { display: none; }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 52px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 16px;
+    background: var(--ink);
+    color: #fff;
+    font-family: var(--meme);
+    font-size: clamp(14px, 4.6vw, 20px);
+    white-space: nowrap;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: var(--shadow);
+    transition: transform .12s, background-color .15s;
+  }
+  .pill:hover { transform: translateY(-1px) rotate(-1deg); }
+  .pill:active { transform: scale(.96); }
+  .pill:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+  .pill:disabled { cursor: progress; opacity: .8; }
+  .pill svg { width: 16px; height: 16px; flex: none; }
+  .pill .i-stop, .pill.on .i-play { display: none; }
+  .pill.on .i-stop { display: block; }
+  .pill.ghost { background: var(--paper); color: var(--ink); }
+
+  .bottom {
+    width: min(760px, 100%);
+    font-size: var(--fit, clamp(36px, min(12.5vw, 7vh), 72px));
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .bottom:focus-visible { outline: 3px solid #fff; outline-offset: 6px; border-radius: 6px; }
+  .bottom.swap { animation: swap .25s ease-out; }
+  @keyframes swap { from { transform: scale(.85); opacity: 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="scene" aria-hidden="true">
+  <span class="cloud" style="top:14%;--w:120px;--d:70s;--delay:-20s"></span>
+  <span class="cloud" style="top:34%;--w:80px;--d:55s;--delay:-42s"></span>
+  <span class="cloud" style="top:52%;--w:150px;--d:90s;--delay:-5s"></span>
+</div>
+<main>
+  <h1 class="meme">Horse code</h1>
+  <div class="modes" role="tablist" aria-label="Direction">
+    <button type="button" role="tab" data-mode="encode" aria-selected="true">english → horse</button>
+    <button type="button" role="tab" data-mode="decode" aria-selected="false">horse → english</button>
+  </div>
+
+  <div class="stack">
+    <textarea id="in" rows="1" placeholder="type a message" autocomplete="off" autocapitalize="off" spellcheck="false" autofocus aria-label="Message"></textarea>
+
+    <div class="outbox">
+      <button id="out" type="button" aria-label="Horse code — tap to copy"></button>
+      <button class="tag" id="tag" type="button" aria-live="polite">
+        <svg class="sheets" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="9" height="9" rx="2"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg>
+        <svg class="tick" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>
+        <span id="tagText">copy</span>
+      </button>
+    </div>
+
+    <div class="bar hidden" id="bar">
+      <button class="pill" id="play" type="button">
+        <svg class="i-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.8v10.4a.8.8 0 0 0 1.2.7l8.4-5.2a.8.8 0 0 0 0-1.4L5.7 2.1a.8.8 0 0 0-1.2.7z" fill="currentColor"/></svg>
+        <svg class="i-stop" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="1.5" fill="currentColor"/></svg>
+        <span id="playLabel">hear gallop</span>
+      </button>
+      <button class="pill ghost" id="save" type="button">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 10V2.5M5 5.5 8 2.5l3 3M4.5 8H4a1 1 0 0 0-1 1v4.5a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-.5"/></svg>
+        <span id="saveLabel">share gallop</span>
+      </button>
+    </div>
+  </div>
+
+  <footer class="ground">
+    <button class="meme bottom" id="caption" type="button" aria-label="New caption">but make it horse</button>
+  </footer>
+</main>
+
+<script>
+  const MORSE = {
+    a: ".-", b: "-...", c: "-.-.", d: "-..", e: ".", f: "..-.", g: "--.", h: "....",
+    i: "..", j: ".---", k: "-.-", l: ".-..", m: "--", n: "-.", o: "---", p: ".--.",
+    q: "--.-", r: ".-.", s: "...", t: "-", u: "..-", v: "...-", w: ".--", x: "-..-",
+    y: "-.--", z: "--..",
+    0: "-----", 1: ".----", 2: "..---", 3: "...--", 4: "....-",
+    5: ".....", 6: "-....", 7: "--...", 8: "---..", 9: "----.",
+    ".": ".-.-.-", ",": "--..--", "?": "..--..", "'": ".----.", "!": "-.-.--",
+    "/": "-..-.", "(": "-.--.", ")": "-.--.-", "&": ".-...", ":": "---...",
+    ";": "-.-.-.", "=": "-...-", "+": ".-.-.", "-": "-....-", "_": "..--.-",
+    '"': ".-..-.", "$": "...-..-", "@": ".--.-."
+  };
+  const HORSE = { ".": "🐴", "-": "🐎" };
+
+  const input = document.getElementById("in");
+  const out = document.getElementById("out");
+  const bar = document.getElementById("bar");
+  const playBtn = document.getElementById("play");
+  const playLabel = document.getElementById("playLabel");
+  const saveBtn = document.getElementById("save");
+  const saveLabel = document.getElementById("saveLabel");
+  const tag = document.getElementById("tag");
+  const tagText = document.getElementById("tagText");
+
+  // words -> letters -> morse strings
+  const encode = text =>
+    text.toLowerCase().trim().split(/\s+/)
+      .map(w => [...w].map(c => MORSE[c]).filter(Boolean))
+      .filter(w => w.length);
+
+  const toHorse = m => [...m].map(s => HORSE[s]).join("");
+
+  // horses (or dots and dashes) -> words -> letters -> morse strings
+  const ENGLISH = Object.fromEntries(Object.entries(MORSE).map(([c, m]) => [m, c]));
+  const parse = text =>
+    text.replace(/\uFE0F/g, "").replace(/🐴/gu, ".").replace(/🐎/gu, "-")
+      .replace(/[^.\-\s/]/g, "").trim()
+      .split(/\s*\/\s*|\s{2,}|\n+/)
+      .map(w => w.split(/\s+/).filter(Boolean))
+      .filter(w => w.length);
+  const toEnglish = m => ENGLISH[m] ?? "?";
+  const isHorses = text => /[🐴🐎]/u.test(text) && !/[a-z0-9]/i.test(text);
+
+  let mode = "encode";
+  let model = [];
+
+  const grow = () => {
+    input.style.height = "auto";
+    input.style.height = input.scrollHeight + input.offsetHeight - input.clientHeight + "px";
+    // only scroll once it hits its max height
+    input.style.overflowY = input.scrollHeight > input.clientHeight + 1 ? "auto" : "hidden";
+  };
+
+  let plain = "";
+
+  const render = () => {
+    grow();
+    stop();
+    // pasting horses while encoding flips straight to decode
+    if (mode === "encode" && isHorses(input.value)) return setMode("decode", false);
+
+    const words = model = mode === "encode" ? encode(input.value) : parse(input.value);
+    plain = mode === "encode"
+      // one space between letters, two between words
+      ? words.map(w => w.map(toHorse).join(" ")).join("  ")
+      : words.map(w => w.map(toEnglish).join("")).join(" ");
+    bar.classList.toggle("hidden", !plain);
+    out.classList.toggle("decoded", mode === "decode");
+    out.setAttribute("aria-label", `${mode === "encode" ? "Horse code" : "English"} — tap to copy`);
+    // warm up the encoder so the share sheet opens while the tap still counts
+    if (plain) loadLame().catch(() => {});
+
+    if (mode === "decode") {
+      out.innerHTML = words.map(w =>
+        `<span class="word">${w.map(m => {
+          const c = toEnglish(m);
+          return `<span class="ch${c === "?" && m !== "..--.." ? " unk" : ""}">${c.replace(/[&<>"]/g, x => `&#${x.charCodeAt(0)};`)}</span>`;
+        }).join("")}</span>`
+      ).join("");
+      return;
+    }
+
+    out.innerHTML = words.map(w =>
+      `<span class="word">${w.map(m =>
+        `<span class="letter">${[...m].map(s => `<span class="h">${HORSE[s]}</span>`).join("")}</span>`
+      ).join("")}</span>`
+    ).join("");
+  };
+
+  input.addEventListener("input", render);
+
+  const modeBtns = document.querySelectorAll(".modes button");
+  const PLACEHOLDER = { encode: "type a message", decode: "paste horse code 🐴🐎" };
+
+  // swap: switching direction moves the current result into the box, like a translator
+  function setMode(next, swap = true) {
+    if (next === mode) return;
+    const carry = swap && plain ? plain : input.value;
+    mode = next;
+    modeBtns.forEach(b => b.setAttribute("aria-selected", b.dataset.mode === mode));
+    input.placeholder = PLACEHOLDER[mode];
+    input.value = carry;
+    render();
+    setCaption(mode === "decode" ? "straight from the horse's mouth" : "but make it horse");
+    input.focus();
+  }
+  modeBtns.forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+
+
+  // bottom text: tap for a new one, and it changes whenever you copy or share
+  const CAPTIONS = [
+    "but make it horse",
+    "neigh means neigh",
+    "straight from the horse's mouth",
+    "hold your horses",
+    "samuel morse is shaking",
+    "why the long face",
+    "hay is for horses",
+    "sent from my horse",
+    "no horsing around",
+    "stable genius communication",
+    "you can lead a horse to morse",
+    "certified neigh-tive speaker"
+  ];
+  const caption = document.getElementById("caption");
+  let ci = 0;
+  // shrink the bottom text until it fits on two lines
+  const fitCaption = () => {
+    caption.style.removeProperty("--fit");
+    let size = parseFloat(getComputedStyle(caption).fontSize);
+    while (caption.scrollHeight > size * 2.15 && size > 18) {
+      size -= 2;
+      caption.style.setProperty("--fit", `${size}px`);
+    }
+  };
+  addEventListener("resize", fitCaption);
+  document.fonts?.ready.then(fitCaption);
+
+  const setCaption = text => {
+    caption.textContent = text;
+    fitCaption();
+    caption.classList.remove("swap");
+    void caption.offsetWidth;
+    caption.classList.add("swap");
+  };
+  const nextCaption = () => {
+    ci = (ci + 1 + Math.floor(Math.random() * (CAPTIONS.length - 1))) % CAPTIONS.length;
+    setCaption(CAPTIONS[ci]);
+  };
+  caption.addEventListener("click", nextCaption);
+
+  // copy
+  let tagTimer;
+  const copy = async () => {
+    if (!plain) return;
+    try {
+      await navigator.clipboard.writeText(plain);
+    } catch {
+      const t = document.createElement("textarea");
+      t.value = plain;
+      document.body.appendChild(t);
+      t.select();
+      document.execCommand("copy");
+      t.remove();
+    }
+    tag.classList.add("done");
+    tagText.textContent = "copied";
+    clearTimeout(tagTimer);
+    tagTimer = setTimeout(() => {
+      tag.classList.remove("done");
+      tagText.textContent = "copy";
+    }, 1600);
+  };
+  out.addEventListener("click", () => { copy(); nextCaption(); });
+  tag.addEventListener("click", () => { copy(); nextCaption(); });
+
+  // hear it: each dot is one hoof, each dash a clip-clop, in morse timing
+  const UNIT = .11;
+
+  // [{ at, dash, el }] in seconds from the start
+  const timeline = () => {
+    const steps = [];
+    const horses = out.querySelectorAll(".h");
+    const letters = out.querySelectorAll(".ch");
+    let t = 0, hi = 0, ci = 0;
+    model.forEach((word, wi) => {
+      if (wi) t += UNIT * 4;                      // 7 units between words
+      word.forEach((m, li) => {
+        if (li) t += UNIT * 2;                    // 3 units between letters
+        const letter = letters[ci++];
+        [...m].forEach((sym, si) => {
+          if (si) t += UNIT;                      // 1 unit between symbols
+          const dash = sym === "-";
+          steps.push({ at: t, dash, el: mode === "encode" ? horses[hi] : letter });
+          hi++;
+          t += dash ? UNIT * 3 : UNIT;
+        });
+      });
+    });
+    return { steps, length: t };
+  };
+
+  const clop = (ac, dest, t, pitch) => {
+    const len = .07;
+    const buf = ac.createBuffer(1, Math.floor(ac.sampleRate * len), ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 6);
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    const bp = ac.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 900 * pitch;
+    bp.Q.value = 4;
+    const g = ac.createGain();
+    g.gain.value = 1.6;
+    src.connect(bp).connect(g).connect(dest);
+    src.start(t);
+    return src;
+  };
+
+  const hooves = (ac, dest, start, steps) => steps.flatMap(({ at, dash }) => {
+    const s = [clop(ac, dest, start + at, 1.1)];
+    if (dash) s.push(clop(ac, dest, start + at + UNIT * 1.6, .8));
+    return s;
+  });
+
+  let ctx, master, sources = [], timers = [];
+
+  // kills the sound and the highlight; runs on stop, on every edit, and when the tab is hidden
+  function stop() {
+    timers.forEach(clearTimeout);
+    timers = [];
+    sources.forEach(src => { try { src.stop(); } catch {} });
+    sources = [];
+    if (master) { master.disconnect(); master = null; }
+    out.classList.remove("playing");
+    out.querySelectorAll(".on").forEach(h => h.classList.remove("on"));
+    playBtn.classList.remove("on");
+    playLabel.textContent = "hear gallop";
+  }
+
+  playBtn.addEventListener("click", () => {
+    if (timers.length) return stop();
+    ctx ||= new (window.AudioContext || window.webkitAudioContext)();
+    ctx.resume();
+    master = ctx.createGain();
+    master.connect(ctx.destination);
+    const { steps, length } = timeline();
+    sources = hooves(ctx, master, ctx.currentTime + .05, steps);
+    out.classList.add("playing");
+    playBtn.classList.add("on");
+    playLabel.textContent = "stop";
+    steps.forEach(({ at, el }) => timers.push(setTimeout(() => {
+      out.querySelectorAll(".on").forEach(x => x.classList.remove("on"));
+      if (!el) return;
+      el.classList.add("on");
+      el.scrollIntoView({ block: "nearest" });
+    }, at * 1000 + 50)));
+    timers.push(setTimeout(stop, length * 1000 + 300));
+  });
+
+  document.addEventListener("visibilitychange", () => document.hidden && stop());
+
+  // save the gallop: render offline, encode to mp3
+  let lame;
+  const loadLame = () => lame ||= new Promise((resolve, reject) => {
+    const sc = document.createElement("script");
+    sc.src = "https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js";
+    sc.onload = () => resolve(window.lamejs);
+    sc.onerror = () => { lame = null; reject(); };
+    document.head.appendChild(sc);
+  });
+
+  const toMp3 = (lamejs, audio) => {
+    const pcm = audio.getChannelData(0);
+    const ints = new Int16Array(pcm.length);
+    for (let i = 0; i < pcm.length; i++) ints[i] = Math.max(-1, Math.min(1, pcm[i])) * 0x7fff;
+    const enc = new lamejs.Mp3Encoder(1, audio.sampleRate, 128);
+    const parts = [];
+    for (let i = 0; i < ints.length; i += 1152) {
+      const chunk = enc.encodeBuffer(ints.subarray(i, i + 1152));
+      if (chunk.length) parts.push(new Uint8Array(chunk));
+    }
+    const end = enc.flush();
+    if (end.length) parts.push(new Uint8Array(end));
+    return new Blob(parts, { type: "audio/mpeg" });
+  };
+
+  // opens the system share sheet (WhatsApp, Messages, contacts…); browsers without file sharing get a download
+  const SHARES = !!navigator.canShare?.({ files: [new File([""], "x.mp3", { type: "audio/mpeg" })] });
+
+  const slug = () => ((mode === "encode" ? input.value : plain).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "gallop");
+
+  saveBtn.addEventListener("click", async () => {
+    if (saveBtn.disabled) return;
+    saveBtn.disabled = true;
+    saveLabel.textContent = "saddling up…";
+    try {
+      const lamejs = await loadLame();
+      const { steps, length } = timeline();
+      const rate = 44100;
+      const off = new OfflineAudioContext(1, Math.ceil((length + .4) * rate), rate);
+      hooves(off, off.destination, .1, steps);
+      const blob = toMp3(lamejs, await off.startRendering());
+      const name = `gallop-${slug()}.mp3`;
+      const file = new File([blob], name, { type: "audio/mpeg" });
+      const download = () => {
+        const url = URL.createObjectURL(blob);
+        const a = Object.assign(document.createElement("a"), { href: url, download: name });
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      };
+      if (SHARES && navigator.canShare({ files: [file] })) {
+        // falls back to a download if the browser refuses the share
+        await navigator.share({ files: [file] }).catch(e => e.name !== "AbortError" && download());
+      } else {
+        download();
+      }
+      saveLabel.textContent = "giddy up";
+      nextCaption();
+    } catch {
+      saveLabel.textContent = "try again";
+    }
+    setTimeout(() => {
+      saveLabel.textContent = "share gallop";
+      saveBtn.disabled = false;
+    }, 1600);
+  });
+</script>
+</body>
+</html>
